@@ -18,7 +18,7 @@ final class Truth_Source {
 	 * @var Truth_Source
 	 */
 	private static $instance;
-	private static $error;
+	private static $errors;
 
 	/**
 	 * Get the Sentry admin page instance.
@@ -33,7 +33,7 @@ final class Truth_Source {
 		add_action( 'admin_menu', [ $this, 'admin_menu' ] );
 		add_action('admin_init',  [ $this, 'on_admin_init' ] );
 
-		self::$error = '';
+		self::$errors[] = [];
 		register_activation_hook( __FILE__, array( __CLASS__, 'activate' ) );
 	}
 
@@ -69,16 +69,26 @@ final class Truth_Source {
 
 		if( ! empty($_POST['new_source']) )
 		{
-			$newSource = strtolower($_POST['new_source']);
-			if( !in_array($newSource, $settings['sources'] )) {
-				$settings['sources'][] = $newSource;
-				update_option('truth-source', $settings);
+			$newSourcePost = strtolower($_POST['new_source']);
+			$newSource = parse_url($newSourcePost);
 
-				self::update_remotes();
-			}
-			else
+			if(($newSource['scheme'] == 'http' || $newSource['scheme'] == 'https') && !empty($newSource['host']))
 			{
-				self::$error = "'${newSource}' already exists as environment.";
+				$cleanedSource = $newSource['scheme'] . '://'.$newSource['host'];
+
+				if( !in_array($cleanedSource, $settings['sources'] )) {
+					$settings['sources'][] = $cleanedSource;
+					update_option('truth-source', $settings);
+
+					self::update_remotes();
+				}
+				else
+				{
+					self::$errors[] = "'${cleanedSource}' already exists as environment.";
+				}
+
+			} else {
+				self::$errors[] = "'${newSourcePost}' is not a proper url.";
 			}
 		}
 		if( ! empty($_POST['remove']) )
@@ -93,7 +103,7 @@ final class Truth_Source {
 			}
 			else
 			{
-				self::$error = "'${removeSource}' is the source of truth. Please select another source before removing.";
+				self::$errors[] = "'${removeSource}' is the source of truth. Please select another source before removing.";
 			}
 		}
 		if( ! empty($_POST['make_source']) )
@@ -217,12 +227,20 @@ final class Truth_Source {
 
 				curl_close($curl);
 
-				$settings['status'][$source] = $data->success;
-				echo ($data->message);
+				if(empty($data)) {
+					self::$errors[] = "Host `${source}` unreachable";
+				} else {
+					$settings['status'][$source] = $data->success;
+
+					// combine remote sources with these sources
+					$settings['sources'] = array_unique(array_merge($data->sources,$settings['sources']), SORT_REGULAR);
+
+					if(!empty($data->message)) {
+						self::$errors[] = $data->message;
+					}
+				}
 			}
-
 			// close curl resource to free up system resources
-
 		endforeach;
 
 		update_option('truth-source', $settings);
@@ -234,7 +252,7 @@ final class Truth_Source {
 	public function api_settings_page() {
 		$settings = self::get_settings();
 		$token = $settings['token'];
-		self::$error = '';
+		//self::$errors[] = '';
 		if( !empty($_POST['token']) )
 		{
 			$settings['token'] = $token = $_POST['token'];
@@ -252,15 +270,14 @@ final class Truth_Source {
         <div class="wrap">
             <h1>Source of Truth API Settings</h1>
 			<a href="?page=truth-source">Admin settings</a>
-
+			<?php self::show_errors(); ?>
 			<form method="POST">
 				<p>
 					<label>Token</label>
-					<input type="text" class="code" value="<?php echo $token; ?>" name="token">
+					<input type="text" class="code regular-text" value="<?php echo $token; ?>" name="token">
 				</p>
 				<?php submit_button(); ?>
 			</form>
-			<p><?php echo(self::$error) ?></p>
         </div>
 		<?php
 	}
@@ -270,7 +287,7 @@ final class Truth_Source {
 	 */
 	public static function admin_page() {
 		$settings = self::get_settings('refresh');
-		self::$error = '';
+		//self::$errors[] = '';
 		?>
 		<style>
 		.url-sot-2 {
@@ -297,6 +314,7 @@ final class Truth_Source {
         <div class="wrap">
             <h1>Source of Truth Settings</h1>
 			<a href="?page=truth-source&api=1">API settings</a>
+			<?php self::show_errors(); ?>
 			<form method="POST">
 				<input type="hidden" class="code" value="" name="recheck">
 				<?php submit_button('Re-check sources'); ?>
@@ -352,12 +370,11 @@ final class Truth_Source {
 				</table>
 			</form>
 			<br><br>
-			<form method="POST">
+			<form method="POST" class="acf-field">
 				<label>Add New Source</label>
-				<input type="text" class="code" value="" name="new_source">
+				<input type="text" class="code regular-text" value="" name="new_source">
 				<?php submit_button('Add Source'); ?>
 			</form>
-			<p><?php echo(self::$error) ?></p>
         </div>
 	<?php
 	}
@@ -373,7 +390,21 @@ final class Truth_Source {
 		}
 
 	}
+
+	function show_errors() {
+		foreach(self::$errors as $error):
+			if(!empty($error)):
+				?>
+				<div class="notice notice-error notice-big-error" style="background: #f88;color: white;">
+					<p><?php echo($error) ?></p>
+				</div>
+				<?php
+			endif;
+		endforeach;
+	}
 }
+
+
 
 function get_sot_settings() {
 	if ( is_multisite() ) {
@@ -396,7 +427,7 @@ function ajax_truth_source(){
 			$settings['token'] = $payload['token'];
 		}
 		if($settings['token'] == $payload['token']) {
-			echo(json_encode(['success' => true]));
+			echo(json_encode(['success' => true, 'sources' => $settings['sources']]));
 			update_option('truth-source', $payload);
 		} else {
 			echo(json_encode(['success' => false, 'message' => 'Tokens don\'t match' . $payload['token'] . ' and ' . $settings['token'] ]));
