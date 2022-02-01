@@ -114,6 +114,11 @@ final class Truth_Source {
 
 			self::update_remotes();
 		}
+
+		if( ! empty($_POST['recheck']))
+		{
+			self::update_remotes();
+		}
 	}
 
 	private static function get_settings( $refresh = 'no' ) {
@@ -203,47 +208,71 @@ final class Truth_Source {
 		$settings = self::get_settings('refresh');
 		$admin_path = str_replace(home_url(), '', admin_url('admin-ajax.php'));
 		$admin_path .= '?action=truth_source';
+		$sourceHash = md5(json_encode($settings['sources']));
+		$redosSources = [];
+		$redo = false;
 
 		foreach($settings['sources'] as $source):
 			// don't curl yo'self dummy!
 			if($source == home_url()) {
 				$settings['status'][$source] = true;
 			}
-			else
+			elseif(self::update_remote_source($source, $admin_path, $settings, true))
 			{
-				$curl = curl_init();
-				// set url
-				curl_setopt($curl, CURLOPT_URL, $source . $admin_path);
-				//return the transfer as a string
-				curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($settings));
-				curl_setopt($curl, CURLOPT_HEADER, 0);
-				curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type:application/json']);
-				curl_setopt($curl, CURLOPT_POST, 1);
-				curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-				curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
-				curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-				// $output contains the output string
-				$data = json_decode(curl_exec($curl));
-
-				curl_close($curl);
-
-				if(empty($data)) {
-					self::$errors[] = "Host `${source}` unreachable";
-				} else {
-					$settings['status'][$source] = $data->success;
-
-					// combine remote sources with these sources
-					$settings['sources'] = array_unique(array_merge($data->sources,$settings['sources']), SORT_REGULAR);
-
-					if(!empty($data->message)) {
-						self::$errors[] = $data->message;
-					}
-				}
+				$redo = true;
 			}
-			// close curl resource to free up system resources
+		endforeach;
+
+		// if there were any source differences, re-do them all once more to be safe
+		foreach($settings['sources'] as $source):
+			//echo ("RE DOING !!! ". $source);
+			if($source != home_url()) {
+				self::update_remote_source($source, $admin_path, $settings);
+			}
 		endforeach;
 
 		update_option('truth-source', $settings);
+	}
+
+	public function update_remote_source($source, $admin_path, &$settings, $recordErrors = false) {
+		$redo = false;
+
+		$curl = curl_init();
+		// set url
+		curl_setopt($curl, CURLOPT_URL, $source . $admin_path);
+		//return the transfer as a string
+		curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($settings));
+		curl_setopt($curl, CURLOPT_HEADER, 0);
+		curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type:application/json']);
+		curl_setopt($curl, CURLOPT_POST, 1);
+		curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+		curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($curl, CURLOPT_TIMEOUT, 5);
+		// $output contains the output string
+		$data = json_decode(curl_exec($curl));
+
+		// close curl resource to free up system resources
+		curl_close($curl);
+
+		if(empty($data)) {
+			if($recordErrors) self::$errors[] = "Host `${source}` unreachable or truth-source not enabled.";
+		} else {
+			$settings['status'][$source] = $data->success;
+
+			$remoteHash = md5(json_encode($data->sources));
+			// combine remote sources with these sources
+			$settings['sources'] = array_unique(array_merge($data->sources,$settings['sources']), SORT_REGULAR);
+			$sourceHash = md5(json_encode($settings['sources']));
+			if($sourceHash != $remoteHash) {
+				$redo = true;
+			};
+
+			if(!empty($data->message) && $recordErrors) {
+				self::$errors[] = $data->message;
+			}
+		}
+		return $redo;
 	}
 
 	/**
@@ -291,7 +320,7 @@ final class Truth_Source {
 		?>
 		<style>
 		.url-sot-2 {
-			background-color: #ffaaaa !important;
+			background-color: #ff6666 !important;
 		}
 		.sot-circle {
 			border-radius: 50%;
@@ -305,7 +334,7 @@ final class Truth_Source {
 			background-color: #0F0;
 		}
 		.sot-circle--red {
-			background-color: #F00;
+			background-color: #ff9999;
 		}
 		.sot-col-sm {
 			width: 4em;
@@ -316,7 +345,7 @@ final class Truth_Source {
 			<a href="?page=truth-source&api=1">API settings</a>
 			<?php self::show_errors(); ?>
 			<form method="POST">
-				<input type="hidden" class="code" value="" name="recheck">
+				<input type="hidden" class="code" value="recheck" name="recheck">
 				<?php submit_button('Re-check sources'); ?>
 			</form>
 			<form method="POST">
@@ -395,7 +424,7 @@ final class Truth_Source {
 		foreach(self::$errors as $error):
 			if(!empty($error)):
 				?>
-				<div class="notice notice-error notice-big-error" style="background: #f88;color: white;">
+				<div class="notice notice-error notice-big-error" style="background: #ff6666;color: white;">
 					<p><?php echo($error) ?></p>
 				</div>
 				<?php
@@ -452,10 +481,10 @@ function sot_admin_notice() {
         <?php
     else:
         ?>
-        <div class="notice notice-error notice-big-error" style="background: #f88;color: white;">
+        <div class="notice notice-error notice-big-error" style="background: #ff6666;color: white;">
             <p>
 				<?php _e( 'WARNING: This <strong>IS NOT</strong> the current source of truth (Any changes made here will be overwritten).' , 'sample-text-domain' ); ?>
-				The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank"><?php echo($settings['sot']) ?></a>.
+				The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank" style="color: #fff;"><?php echo($settings['sot']) ?></a>.
 			</p>
         </div>
         <?php
