@@ -109,7 +109,6 @@ final class Truth_Source {
 		if( ! empty($_POST['make_source']) )
 		{
 			$settings['sot'] = $_POST['make_source'];
-			//dd($settings['sources']);
 			update_option('truth-source', $settings);
 
 			self::update_remotes();
@@ -169,9 +168,8 @@ final class Truth_Source {
 	public static function activate() {
 		register_uninstall_hook( __FILE__, array( __CLASS__, 'uninstall' ) );
 
-		$options = [];
-		$options[] = [
-			'sources' => home_url(),
+		$options = [
+			'sources' => [home_url()],
 			'sot' => true,
 			'status' => [],
 			'token' => '',
@@ -373,7 +371,7 @@ final class Truth_Source {
 						<?php
 							if( $source === $settings['sot']):
 								echo(' | This is current Source');
-							elseif($settings['status'][$source] !== true):
+							elseif(array_key_exists($source, $settings['status']) && $settings['status'][$source] !== true):
 								echo(' | Error connecting');
 							else:
 								echo(' | <button value="' . $source . '" class="button-link editinline" name="make_source">Make this source</button>');
@@ -385,7 +383,7 @@ final class Truth_Source {
 							<?php
 								if( $source === $settings['sot']):
 									echo("<div class=\"sot-circle sot-circle--green\"></div>");
-								elseif($settings['status'][$source] !== true):
+								elseif(array_key_exists($source, $settings['status']) && $settings['status'][$source] !== true):
 									echo("<div class=\"sot-circle sot-circle--red\"></div>");
 								else:
 									echo("<div class=\"sot-circle\"></div>");
@@ -412,7 +410,11 @@ final class Truth_Source {
 	 * Form pages.
 	 */
 	public static function render_admin_page() {
-		if($_GET['api']) {
+		$api = false;
+		if(isset($_GET['api'])) {
+			$api = $_GET['api'];
+		}
+		if($api) {
 			self::api_settings_page();
 		} else {
 			self::admin_page();

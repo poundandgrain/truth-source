@@ -1,15 +1,15 @@
 {
-    "name": "poundandgrain/truth-source",
-    "description": "Broadcasts message to various environments to modify the content source of truth",
-    "type": "wordpress-plugin",
-    "require": {
-        "composer/installers":"^1.8"
-    },
-    "license": "GPL-3.0+",
-    "authors": [
-      {
-        "name": "Bryan Jones",
-        "email": "bryanj@poundandgrain.com"
-      }
-    ]
-  }
+  "name": "poundandgrain/truth-source",
+  "description": "Broadcasts message to various environments to modify the content source of truth",
+  "type": "wordpress-muplugin",
+  "require": {
+    "composer/installers": "^2.0.1"
+  },
+  "license": "GPL-3.0+",
+  "authors": [
+    {
+      "name": "Bryan Jones",
+      "email": "bryanj@poundandgrain.com"
+    }
+  ]
+}
