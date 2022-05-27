@@ -475,23 +475,24 @@ add_action( 'wp_ajax_nopriv_truth_source', __NAMESPACE__ . '\\ajax_truth_source'
 
 function sot_admin_notice() {
 	$settings = get_sot_settings();
-    if($settings['sot'] == home_url()):
-        ?>
-        <div class="notice notice-success">
-            <p><?php _e( 'This is the current source of truth', 'sample-text-domain' ); ?></p>
-        </div>
-        <?php
-    else:
-        ?>
-        <div class="notice notice-error notice-big-error" style="background: #ff6666;color: white;">
-            <p>
-				<?php _e( 'WARNING: This <strong>IS NOT</strong> the current source of truth (Any changes made here will be overwritten).' , 'sample-text-domain' ); ?>
-				The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank" style="color: #fff;"><?php echo($settings['sot']) ?></a>.
-			</p>
-        </div>
-        <?php
-    endif;
-
+	if(!empty($settings)) {
+		if($settings['sot'] == home_url()):
+			?>
+			<div class="notice notice-success">
+				<p><?php _e( 'This is the current source of truth', 'sample-text-domain' ); ?></p>
+			</div>
+			<?php
+		else:
+			?>
+			<div class="notice notice-error notice-big-error" style="background: #ff6666;color: white;">
+				<p>
+					<?php _e( 'WARNING: This <strong>IS NOT</strong> the current source of truth (Any changes made here will be overwritten).' , 'sample-text-domain' ); ?>
+					The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank" style="color: #fff;"><?php echo($settings['sot']) ?></a>.
+				</p>
+			</div>
+			<?php
+		endif;
+	}
 }
 add_action( 'admin_notices', 'sot_admin_notice' );
 
