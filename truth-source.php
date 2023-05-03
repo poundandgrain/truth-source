@@ -52,8 +52,7 @@ final class Truth_Source {
 
 
 	public static function on_admin_init() {
-		$settings = self::get_settings();
-
+		self::$settings = self::get_settings();
 		add_filter( 'plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
 		add_filter( 'network_admin_plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
 
@@ -65,30 +64,31 @@ final class Truth_Source {
 
 	private static function check_form_submissions()
 	{
-		$settings = self::get_settings();
+		$settings = self::$settings;
 
 		if( ! empty($_POST['new_source']) )
 		{
+
 			$newSourcePost = strtolower($_POST['new_source']);
 			$newSource = parse_url($newSourcePost);
 
-			if(($newSource['scheme'] == 'http' || $newSource['scheme'] == 'https') && !empty($newSource['host']))
+			if(array_key_exists('scheme', $newSource) && array_key_exists('host', $newSource)  && ($newSource['scheme'] == 'http' || $newSource['scheme'] == 'https') && !empty($newSource['host']))
 			{
 				$cleanedSource = $newSource['scheme'] . '://'.$newSource['host'];
 
-				if( !in_array($cleanedSource, $settings['sources'] )) {
+				if(!in_array($cleanedSource, $settings['sources'] )) {
 					$settings['sources'][] = $cleanedSource;
-					update_option('truth-source', $settings);
-
+					self::set_settings($settings);
 					self::update_remotes();
 				}
 				else
 				{
-					self::$errors[] = "'${cleanedSource}' already exists as environment.";
+					//dd(count($settings['sources']), $settings['sources'] );
+					self::$errors[] = "'{$cleanedSource}' already exists as environment.";
 				}
 
 			} else {
-				self::$errors[] = "'${newSourcePost}' is not a proper url.";
+				self::$errors[] = "'{$newSourcePost}' is not a proper url.";
 			}
 		}
 		if( ! empty($_POST['remove']) )
@@ -97,20 +97,19 @@ final class Truth_Source {
 			if( $settings['sot'] != $removeSource)
 			{
 				array_splice($settings['sources'], (int)$_POST['remove']-1, 1);
-				update_option('truth-source', $settings);
-
+				self::set_settings($settings);
 				self::update_remotes();
 			}
 			else
 			{
-				self::$errors[] = "'${removeSource}' is the source of truth. Please select another source before removing.";
+				self::$errors[] = "'{$removeSource}' is the source of truth. Please select another source before removing.";
 			}
 		}
 		if( ! empty($_POST['make_source']) )
 		{
 			$settings['sot'] = $_POST['make_source'];
-			update_option('truth-source', $settings);
 
+			self::set_settings($settings);
 			self::update_remotes();
 		}
 
@@ -120,29 +119,47 @@ final class Truth_Source {
 		}
 	}
 
-	private static function get_settings( $refresh = 'no' ) {
+	private static function get_settings() {
+		if ( !empty( self::$settings ) && !empty(self::$settings['sources'])) {
 
-		if ( ! empty( self::$settings ) && $refresh === 'no' ) {
+			dd(self::$settings);
 			return self::$settings;
+		}
+
+		if ( is_multisite() ) {
+			$settings = get_network_option(null, 'truth-source' );
+		} else {
+			$settings = get_option( 'truth-source' );
+		}
+		if( ! empty( $settings ) ) {
+			// make sure $options is valid
+			if(!empty($settings['sources']) && gettype($settings['sources']) == 'array') {
+				self::$settings = $settings;
+				return $settings;
+			}
 		}
 
 		$defaults = [
 			'sources' => [],
-			'sot' => false,
+			'sot' => true,
 			'status' => [],
 			'token' => '',
 		];
 
-		if ( is_multisite() ) {
-			$options = get_network_option( 'truth-source' );
-		} else {
-			$options = get_option( 'truth-source' );
-		}
-		if( ! empty( $options ) ) {
-			$defaults = $options;
-		}
+		// add self as a source
+		$defaults['sources'][] = home_url();
 
-		self::$settings = $defaults;
+		return $defaults;
+	}
+
+	private static function set_settings($settings) {
+		self::$settings = $settings;
+
+		if ( is_multisite() ) {
+			update_network_option(null, 'truth-source', $settings);
+		} else {
+			update_option('truth-source', $settings);
+		}
 
 		return self::$settings;
 	}
@@ -167,18 +184,6 @@ final class Truth_Source {
 	 */
 	public static function activate() {
 		register_uninstall_hook( __FILE__, array( __CLASS__, 'uninstall' ) );
-
-		$options = [
-			'sources' => [home_url()],
-			'sot' => true,
-			'status' => [],
-			'token' => '',
-		];
-		if ( is_multisite() ) {
-			add_network_option( null, 'truth-source', $options );
-		}
-
-		add_option( 'truth-source', $options );
 	}
 
 	/**
@@ -192,47 +197,40 @@ final class Truth_Source {
 		delete_option( 'truth-source' );
 	}
 
-	// public static function add_edit_php_inline_style() {
-	// 	$css = "
-	// 	.url-sot {
-	// 		background-color: red;
-	// 	}
-	// 	";
-	// 	wp_enqueue_style('truth-source', get_template_directory_uri() . '/css/custom.css', array(), '1.0.0', 'all' );
-	// 	wp_add_inline_style('truth-source', $css);
-	// }
-
 	public static function update_remotes() {
-		$settings = self::get_settings('refresh');
+		$settings = self::$settings;
 		$admin_path = str_replace(home_url(), '', admin_url('admin-ajax.php'));
 		$admin_path .= '?action=truth_source';
 		$sourceHash = md5(json_encode($settings['sources']));
 		$redosSources = [];
 		$redo = false;
 
-		foreach($settings['sources'] as $source):
-			// don't curl yo'self dummy!
-			if($source == home_url()) {
-				$settings['status'][$source] = true;
-			}
-			elseif(self::update_remote_source($source, $admin_path, $settings, true))
-			{
-				$redo = true;
-			}
-		endforeach;
 
-		// if there were any source differences, re-do them all once more to be safe
-		foreach($settings['sources'] as $source):
-			//echo ("RE DOING !!! ". $source);
-			if($source != home_url()) {
-				self::update_remote_source($source, $admin_path, $settings);
-			}
-		endforeach;
+		if($settings['sources'] ) {
+			foreach($settings['sources'] as $source):
+				// don't curl yo'self dummy!
+				if($source == home_url()) {
+					$settings['status'][$source] = true;
+				}
+				elseif(self::update_remote_source($source, $admin_path, $settings, true))
+				{
+					$redo = true;
+				}
+			endforeach;
 
-		update_option('truth-source', $settings);
+			// if there were any source differences, re-do them all once more to be safe
+			foreach($settings['sources'] as $source):
+				//echo ("RE DOING !!! ". $source);
+				if($source != home_url()) {
+					self::update_remote_source($source, $admin_path, $settings);
+				}
+			endforeach;
+		}
+
+		self::set_settings($settings);
 	}
 
-	public function update_remote_source($source, $admin_path, &$settings, $recordErrors = false) {
+	public static function update_remote_source($source, $admin_path, &$settings, $recordErrors = false) {
 		$redo = false;
 
 		$curl = curl_init();
@@ -253,8 +251,11 @@ final class Truth_Source {
 		// close curl resource to free up system resources
 		curl_close($curl);
 
+		// set status to false until reached
+		$settings['status'][$source] = false;
+
 		if(empty($data)) {
-			if($recordErrors) self::$errors[] = "Host `${source}` unreachable or truth-source not enabled.";
+			if($recordErrors) self::$errors[] = "Host `{$source}` unreachable or truth-source not enabled.";
 		} else {
 			$settings['status'][$source] = $data->success;
 
@@ -274,10 +275,19 @@ final class Truth_Source {
 	}
 
 	/**
+	 * Render the navigation.
+	 */
+	public static function show_navigation() {
+		echo '<a href="?page=truth-source">Sources</a>';
+		echo ' | ';
+		echo '<a href="?page=truth-source&api=1">Configuration</a>';
+	}
+
+	/**
 	 * Render the API settings page.
 	 */
-	public function api_settings_page() {
-		$settings = self::get_settings();
+	public static function api_settings_page() {
+		$settings = self::$settings;
 		$token = $settings['token'];
 		//self::$errors[] = '';
 		if( !empty($_POST['token']) )
@@ -295,8 +305,8 @@ final class Truth_Source {
 
 		</style>
         <div class="wrap">
-            <h1>Source of Truth API Settings</h1>
-			<a href="?page=truth-source">Admin settings</a>
+            <h1>Source of Truth Configuration</h1>
+			<?php self::show_navigation(); ?>
 			<?php self::show_errors(); ?>
 			<form method="POST">
 				<p>
@@ -309,11 +319,12 @@ final class Truth_Source {
 		<?php
 	}
 
+
 	/**
 	 * Render the admin page.
 	 */
 	public static function admin_page() {
-		$settings = self::get_settings('refresh');
+		$settings = self::$settings;
 		//self::$errors[] = '';
 		?>
 		<style>
@@ -339,8 +350,8 @@ final class Truth_Source {
 		}
 		</style>
         <div class="wrap">
-            <h1>Source of Truth Settings</h1>
-			<a href="?page=truth-source&api=1">API settings</a>
+            <h1>Source of Truth</h1>
+			<?php self::show_navigation(); ?>
 			<?php self::show_errors(); ?>
 			<form method="POST">
 				<input type="hidden" class="code" value="recheck" name="recheck">
@@ -357,42 +368,44 @@ final class Truth_Source {
 					</thead>
 					<?php
 					$i = 0;
-					foreach($settings['sources'] as $source):
-						$i++;
-						//$data = self::check_remote($source);
-					?>
-					<tr class="<?php echo($source === $settings['sot'] ? "url-sot" : "url-not-sot") ?>">
-						<td>
-							<?php //echo('<input type="text" class="code" name="source_' . $i . '" value="'. $source .'" />'); ?>
-							<?php echo("<a href=\"${source}\" target=\"_blank\">${source}</a>"); ?>
-						</td>
-						<td>
-						<?php echo('<button value="' . $i . '" class="button-link editinline" name="remove">Remove</button>'); ?>
-						<?php
-							if( $source === $settings['sot']):
-								echo(' | This is current Source');
-							elseif(array_key_exists($source, $settings['status']) && $settings['status'][$source] !== true):
-								echo(' | Error connecting');
-							else:
-								echo(' | <button value="' . $source . '" class="button-link editinline" name="make_source">Make this source</button>');
-							endif;
+					if(!empty($settings['sources'])):
+						foreach($settings['sources'] as $source):
+							$i++;
+							//$data = self::check_remote($source);
 						?>
-
-						</td>
-						<td>
+						<tr class="<?php echo($source === $settings['sot'] ? "url-sot" : "url-not-sot") ?>">
+							<td>
+								<?php //echo('<input type="text" class="code" name="source_' . $i . '" value="'. $source .'" />'); ?>
+								<?php echo("<a href=\"{$source}\" target=\"_blank\">{$source}</a>"); ?>
+							</td>
+							<td>
+							<?php echo('<button value="' . $i . '" class="button-link editinline" name="remove">Remove</button>'); ?>
 							<?php
 								if( $source === $settings['sot']):
-									echo("<div class=\"sot-circle sot-circle--green\"></div>");
+									echo(' | This is current Source');
 								elseif(array_key_exists($source, $settings['status']) && $settings['status'][$source] !== true):
-									echo("<div class=\"sot-circle sot-circle--red\"></div>");
+									echo(' | Error connecting');
 								else:
-									echo("<div class=\"sot-circle\"></div>");
+									echo(' | <button value="' . $source . '" class="button-link editinline" name="make_source">Make this source</button>');
 								endif;
 							?>
-						</td>
-					</tr>
-					<?php
-					endforeach;
+
+							</td>
+							<td>
+								<?php
+									if( $source === $settings['sot']):
+										echo("<div class=\"sot-circle sot-circle--green\"></div>");
+									elseif(array_key_exists($source, $settings['status']) && $settings['status'][$source] !== true):
+										echo("<div class=\"sot-circle sot-circle--red\"></div>");
+									else:
+										echo("<div class=\"sot-circle\"></div>");
+									endif;
+								?>
+							</td>
+						</tr>
+						<?php
+						endforeach;
+					endif;
 					?>
 				</table>
 			</form>
@@ -422,7 +435,7 @@ final class Truth_Source {
 
 	}
 
-	function show_errors() {
+	public static function show_errors() {
 		foreach(self::$errors as $error):
 			if(!empty($error)):
 				?>
@@ -439,7 +452,7 @@ final class Truth_Source {
 
 function get_sot_settings() {
 	if ( is_multisite() ) {
-		$settings = get_network_option( 'truth-source' );
+		$settings = get_network_option(null, 'truth-source' );
 	} else {
 		$settings = get_option( 'truth-source' );
 	}
@@ -476,18 +489,21 @@ add_action( 'wp_ajax_nopriv_truth_source', __NAMESPACE__ . '\\ajax_truth_source'
 function sot_admin_notice() {
 	$settings = get_sot_settings();
 	if(!empty($settings)) {
-		if($settings['sot'] == home_url()):
+		if(array_key_exists('sot', $settings) && $settings['sot'] == home_url()):
 			?>
 			<div class="notice notice-success">
-				<p><?php _e( 'This is the current source of truth', 'sample-text-domain' ); ?></p>
+				<p><?php _e( 'This is the current source of truth', 'sot' ); ?></p>
 			</div>
 			<?php
 		else:
 			?>
 			<div class="notice notice-error notice-big-error" style="background: #ff6666;color: white;">
 				<p>
-					<?php _e( 'WARNING: This <strong>IS NOT</strong> the current source of truth (Any changes made here will be overwritten).' , 'sample-text-domain' ); ?>
-					The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank" style="color: #fff;"><?php echo($settings['sot']) ?></a>.
+					<?php _e( 'WARNING: This <strong>IS NOT</strong> the current source of truth (Any changes made here will be overwritten).' , 'sot' ); ?>
+					<?php
+					if(array_key_exists('sot', $settings)): ?>
+						The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank" style="color: #fff;"><?php echo($settings['sot']) ?></a>.
+					<?php endif; ?>
 				</p>
 			</div>
 			<?php
