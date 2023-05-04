@@ -70,14 +70,6 @@ final class Truth_Source {
 	 * Setup the network admin menu page.
 	 */
 	public function network_admin_menu(): void {
-		// add_management_page(
-		// 	'Source of Truth',
-		// 	'Source of Truth',
-		// 	'truth-source_plugins',
-		// 	'truth-source',
-		// 	[ __CLASS__, 'render_admin_page' ]
-		// );
-
 		global $submenu;
 
 		// Network admin has no tools section so we add it ourselfs
