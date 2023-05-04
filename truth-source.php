@@ -79,7 +79,7 @@ final class Truth_Source {
 			'activate_plugins',
 			'truth-source-menu',
 			'',
-			'dashicons-admin-tools',
+			'dashicons-cloud-saved',
 			22
 		);
 
