@@ -531,10 +531,8 @@ function sot_admin_notice() {
 		endif;
 	}
 }
-add_action( 'admin_notices', 'sot_admin_notice' );
-
+add_action( 'admin_notices', array( __CLASS__, 'sot_admin_notice') );
 
 if ( is_admin() ) {
 	Truth_Source::get_instance();
 }
-//new Truth_Source();
