@@ -30,11 +30,27 @@ final class Truth_Source {
 	}
 
 	protected function __construct() {
-		add_action( 'admin_menu', [ $this, 'admin_menu' ] );
-		add_action('admin_init',  [ $this, 'on_admin_init' ] );
+		add_action( 'init', function () {
+			if ( ! is_admin() ) {
+				return;
+			}
 
-		self::$errors[] = [];
-		register_activation_hook( __FILE__, array( __CLASS__, 'activate' ) );
+			self::$settings = self::get_settings();
+			add_filter( 'plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
+			add_filter( 'network_admin_plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
+
+			if (!is_multisite()) {
+				add_action( 'admin_menu', [ __CLASS__, 'admin_menu' ] );
+			}
+			add_action( 'network_admin_menu', [ __CLASS__, 'network_admin_menu' ] );
+
+			if( ! empty($_POST) )
+			{
+				self::check_form_submissions();
+			}
+
+			self::$errors[] = [];
+		} );
 	}
 
 	/**
@@ -44,21 +60,49 @@ final class Truth_Source {
 		add_management_page(
 			'Source of Truth',
 			'Source of Truth',
-			'activate_plugins',
+			'truth-source_plugins',
 			'truth-source',
-			[ $this, 'render_admin_page' ]
+			[ __CLASS__, 'render_admin_page' ]
 		);
 	}
 
+	/**
+	 * Setup the network admin menu page.
+	 */
+	public function network_admin_menu(): void {
+		// add_management_page(
+		// 	'Source of Truth',
+		// 	'Source of Truth',
+		// 	'truth-source_plugins',
+		// 	'truth-source',
+		// 	[ __CLASS__, 'render_admin_page' ]
+		// );
 
-	public static function on_admin_init() {
-		self::$settings = self::get_settings();
-		add_filter( 'plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
-		add_filter( 'network_admin_plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
+		global $submenu;
 
-		if( ! empty($_POST) )
-		{
-			self::check_form_submissions();
+		// Network admin has no tools section so we add it ourselfs
+		add_menu_page(
+			'',
+			'Source of Truth',
+			'activate_plugins',
+			'truth-source-menu',
+			'',
+			'dashicons-admin-tools',
+			22
+		);
+
+		add_submenu_page(
+			'truth-source-menu',
+			'Source of Truth',
+			'Settings',
+			'truth-source_plugins',
+			'truth-source',
+			[ __CLASS__, 'render_admin_page' ]
+		);
+
+		// Remove the submenu item crate by `add_menu_page` that links to `truth-source-menu` which does not exist
+		if ( ! empty( $submenu['truth-source-menu'][0] ) && $submenu['truth-source-menu'][0][2] === 'truth-source-menu' ) {
+			unset( $submenu['truth-source-menu'][0] );
 		}
 	}
 
@@ -68,7 +112,6 @@ final class Truth_Source {
 
 		if( ! empty($_POST['new_source']) )
 		{
-
 			$newSourcePost = strtolower($_POST['new_source']);
 			$newSource = parse_url($newSourcePost);
 
@@ -170,31 +213,17 @@ final class Truth_Source {
 	 */
 	public static function add_settings_link( $links, $file ) {
 		if ( $file === 'truth-source/truth-source.php' && current_user_can( 'manage_options' ) ) {
-			$url = admin_url( 'tools.php?page=truth-source&api=1' );
+			if ( is_multisite() ) {
+				$url = network_admin_url( 'admin.php?page=truth-source&api=1' );
+			} else {
+				$url = admin_url( 'tools.php?page=truth-source&api=1' );
+			}
 			// Prevent warnings in PHP 7.0+ when a plugin uses this filter incorrectly.
 			$links = (array) $links;
-			$links[] = sprintf( '<a href="%s">%s</a>', $url, __( 'Settings', 'classic-editor' ) );
+			$links[] = sprintf( '<a href="%s">%s</a>', $url, __( 'Settings', 'truth-source' ) );
 		}
 
 		return $links;
-	}
-
-	/**
-	 * Set defaults on activation.
-	 */
-	public static function activate() {
-		register_uninstall_hook( __FILE__, array( __CLASS__, 'uninstall' ) );
-	}
-
-	/**
-	 * Delete the options on uninstall.
-	 */
-	public static function uninstall() {
-		if ( is_multisite() ) {
-			delete_network_option( null, 'truth-source' );
-		}
-
-		delete_option( 'truth-source' );
 	}
 
 	public static function update_remotes() {
