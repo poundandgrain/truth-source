@@ -46,10 +46,6 @@ final class Truth_Source {
 				add_action( 'admin_menu', [ __CLASS__, 'admin_menu' ] );
 			}
 
-			if (false === self::$initialized) {
-				add_action( 'admin_notices', [ __CLASS__, 'sot_admin_notice'] );
-			}
-
 			if( ! empty($_POST) )
 			{
 				self::check_form_submissions();
@@ -475,32 +471,36 @@ final class Truth_Source {
 		endforeach;
 	}
 
-	function sot_admin_notice() {
-		$settings = self::get_sot_settings();
-		if(!empty($settings)) {
-			if(array_key_exists('sot', $settings) && $settings['sot'] == home_url()):
-				?>
-				<div class="notice notice-success">
-					<p><?php _e( 'This is the current source of truth', 'sot' ); ?></p>
-				</div>
-				<?php
-			else:
-				?>
-				<div class="notice notice-error notice-big-error" style="background: #ff6666;color: white;">
-					<p>
-						<?php _e( 'WARNING: This <strong>IS NOT</strong> the current source of truth (Any changes made here will be overwritten).' , 'sot' ); ?>
-						<?php
-						if(array_key_exists('sot', $settings)): ?>
-							The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank" style="color: #fff;"><?php echo($settings['sot']) ?></a>.
-						<?php endif; ?>
-					</p>
-				</div>
-				<?php
-			endif;
-		}
-	}
-
 }
+
+/**
+ * Get settings from options depending on if multisite or not
+ */
+function sot_admin_notice() {
+	$settings = get_sot_settings();
+	if(!empty($settings)) {
+		if(array_key_exists('sot', $settings) && $settings['sot'] == home_url()):
+			?>
+			<div class="notice notice-success">
+				<p><?php _e( 'This is the current source of truth', 'sot' ); ?></p>
+			</div>
+			<?php
+		else:
+			?>
+			<div class="notice notice-error notice-big-error" style="background: #ff6666;color: white;">
+				<p>
+					<?php _e( 'WARNING: This <strong>IS NOT</strong> the current source of truth (Any changes made here will be overwritten).' , 'sot' ); ?>
+					<?php
+					if(array_key_exists('sot', $settings)): ?>
+						The current SOT is <a href="<?php echo($settings['sot']) ?>" target="_blank" style="color: #fff;"><?php echo($settings['sot']) ?></a>.
+					<?php endif; ?>
+				</p>
+			</div>
+			<?php
+		endif;
+	}
+}
+add_action( 'admin_notices', 'sot_admin_notice' );
 
 /**
  * Get settings from options depending on if multisite or not
