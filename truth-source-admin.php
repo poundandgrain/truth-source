@@ -39,10 +39,6 @@ final class Truth_Source {
 			add_filter( 'plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
 			add_filter( 'network_admin_plugin_action_links', array( __CLASS__, 'add_settings_link' ), 10, 2 );
 
-            // setup ajax endpoints
-            add_action( 'wp_ajax_truth_source', __CLASS__ . '\\ajax_truth_source' );
-            add_action( 'wp_ajax_nopriv_truth_source', __CLASS__ . '\\ajax_truth_source' );
-
             // setup side menu options
 			if (is_multisite()) {
 				add_action( 'network_admin_menu', [ __CLASS__, 'network_admin_menu' ] );
@@ -504,41 +500,44 @@ final class Truth_Source {
 		}
 	}
 
-
-    /**
-     * Get settings from options depending on if multisite or not
-     */
-    function get_sot_settings() {
-        if ( is_multisite() ) {
-            $settings = get_network_option(null, 'truth-source' );
-        } else {
-            $settings = get_option( 'truth-source' );
-        }
-        return $settings;
-    }
-
-    /**
-     * Ajax path for negotiating source of truth
-     */
-    function ajax_truth_source(){
-        $payload = json_decode(file_get_contents('php://input'), true);
-        $settings = get_sot_settings();
-
-        if(!empty($settings)) {
-            if(empty($settings['token']) && !empty($payload['token'])) {
-                $settings['token'] = $payload['token'];
-            }
-            if($settings['token'] == $payload['token']) {
-                echo(json_encode(['success' => true, 'sources' => $settings['sources']]));
-                update_option('truth-source', $payload);
-            } else {
-                echo(json_encode(['success' => false, 'message' => 'Tokens don\'t match' . $payload['token'] . ' and ' . $settings['token'] ]));
-            }
-        } else {
-            echo(json_encode(['success' => false, 'message' => 'Settings are empty.']));
-        }
-
-        die();
-    }
-
 }
+
+/**
+ * Get settings from options depending on if multisite or not
+ */
+function get_sot_settings() {
+	if ( is_multisite() ) {
+		$settings = get_network_option(null, 'truth-source' );
+	} else {
+		$settings = get_option( 'truth-source' );
+	}
+	return $settings;
+}
+
+/**
+ * Ajax path for negotiating source of truth
+ */
+function ajax_truth_source(){
+	$payload = json_decode(file_get_contents('php://input'), true);
+	$settings = get_sot_settings();
+
+	if(!empty($settings)) {
+		if(empty($settings['token']) && !empty($payload['token'])) {
+			$settings['token'] = $payload['token'];
+		}
+		if($settings['token'] == $payload['token']) {
+			echo(json_encode(['success' => true, 'sources' => $settings['sources']]));
+			update_option('truth-source', $payload);
+		} else {
+			echo(json_encode(['success' => false, 'message' => 'Tokens don\'t match' . $payload['token'] . ' and ' . $settings['token'] ]));
+		}
+	} else {
+		echo(json_encode(['success' => false, 'message' => 'Settings are empty.']));
+	}
+
+	die();
+}
+
+// setup ajax endpoints
+add_action( 'wp_ajax_truth_source', __CLASS__ . '\\ajax_truth_source' );
+add_action( 'wp_ajax_nopriv_truth_source', __CLASS__ . '\\ajax_truth_source' );
