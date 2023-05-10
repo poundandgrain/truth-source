@@ -41,9 +41,9 @@ final class Truth_Source {
 
             // setup side menu options
 			if (is_multisite()) {
-				add_action( 'network_admin_menu', [ __CLASS__, 'network_admin_menu' ] );
+				add_action( 'network_admin_menu', [ __CLASS__, 'network_admin_menu', 10 ] );
 			} else {
-				add_action( 'admin_menu', [ __CLASS__, 'admin_menu' ] );
+				add_action( 'admin_menu', [ __CLASS__, 'admin_menu' ], 10 );
 			}
 
 			if( ! empty($_POST) )
@@ -59,20 +59,20 @@ final class Truth_Source {
 	/**
 	 * Setup the admin menu page.
 	 */
-	public function admin_menu(): void {
+	public static function admin_menu(): void {
 		add_management_page(
 			'Source of Truth',
 			'Source of Truth',
-			'truth-source_plugins',
+			'install_plugins',
 			'truth-source',
-			[ __CLASS__, 'render_admin_page' ]
+			[ __CLASS__, 'render_admin_page' ],
 		);
 	}
 
 	/**
 	 * Setup the network admin menu page.
 	 */
-	public function network_admin_menu(): void {
+	public static function network_admin_menu(): void {
 		global $submenu;
 
 		// Network admin has no tools section so we add it ourselfs
@@ -159,8 +159,6 @@ final class Truth_Source {
 
 	private static function get_settings() {
 		if ( !empty( self::$settings ) && !empty(self::$settings['sources'])) {
-
-			dd(self::$settings);
 			return self::$settings;
 		}
 
@@ -206,7 +204,7 @@ final class Truth_Source {
 	/**
 	 * Add a link to the settings on the Plugins screen.
 	 */
-	public static function add_settings_link( $links, $file ) {
+	static function add_settings_link( $links, $file ) {
 		if ( $file === 'truth-source/truth-source.php' && current_user_can( 'manage_options' ) ) {
 			if ( is_multisite() ) {
 				$url = network_admin_url( 'admin.php?page=truth-source&api=1' );
@@ -228,7 +226,7 @@ final class Truth_Source {
 		$sourceHash = md5(json_encode($settings['sources']));
 		$redosSources = [];
 		$redo = false;
-
+		$settings['version'] = get_sot_version_number();
 
 		if($settings['sources'] ) {
 			foreach($settings['sources'] as $source):
@@ -277,9 +275,15 @@ final class Truth_Source {
 
 		// set status to false until reached
 		$settings['status'][$source] = false;
+		$settings['version'] = get_sot_version_number();
 
 		if(empty($data)) {
 			if($recordErrors) self::$errors[] = "Host `{$source}` unreachable or truth-source not enabled.";
+		} else if(empty($data->version)) {
+			dd($data);
+			if($recordErrors) self::$errors[] = "Host `{$source}` version number is not {$settings['version']}.";
+		} else if($data->version != $settings['version']) {
+			if($recordErrors) self::$errors[] = "Host `{$source}` version number is {$data->version} not {$settings['version']}.";
 		} else {
 			$settings['status'][$source] = $data->success;
 
@@ -347,8 +351,9 @@ final class Truth_Source {
 	/**
 	 * Render the admin page.
 	 */
-	public static function admin_page() {
+	static function admin_page() {
 		$settings = self::$settings;
+		$version = get_sot_version_number();
 		//self::$errors[] = '';
 		?>
 		<style>
@@ -374,7 +379,7 @@ final class Truth_Source {
 		}
 		</style>
         <div class="wrap">
-            <h1>Source of Truth</h1>
+            <h1>Source of Truth v<?php echo $version; ?></h1>
 			<?php self::show_navigation(); ?>
 			<?php self::show_errors(); ?>
 			<form method="POST">
@@ -525,17 +530,38 @@ function ajax_truth_source(){
 		if(empty($settings['token']) && !empty($payload['token'])) {
 			$settings['token'] = $payload['token'];
 		}
-		if($settings['token'] == $payload['token']) {
-			echo(json_encode(['success' => true, 'sources' => $settings['sources']]));
+
+		// Always override version in settings to this plugins version
+		$settings['version'] = get_sot_version_number();
+
+		if($settings['version'] != $payload['version']) {
+			// If this version doesn't match the request version
+			echo(json_encode(['success' => false, 'version' => $settings['version'], 'message' => 'Plugin versions don\'t match' . $payload['token'] ]));
+		} else if($settings['token'] == $payload['token']) {
+			// If token equals the request token
+			echo(json_encode(['success' => true, 'version' => $settings['version'], 'sources' => $settings['sources']]));
 			update_option('truth-source', $payload);
 		} else {
-			echo(json_encode(['success' => false, 'message' => 'Tokens don\'t match' . $payload['token'] . ' and ' . $settings['token'] ]));
+			echo(json_encode(['success' => false, 'version' => $settings['version'], 'message' => 'Tokens don\'t match' . $payload['token'] . ' and ' . $settings['token'] ]));
 		}
 	} else {
 		echo(json_encode(['success' => false, 'message' => 'Settings are empty.']));
 	}
 
 	die();
+}
+
+function get_sot_version_number() {
+	// read version number from composer.json
+	$file = __DIR__ . '/composer.json';
+	if (file_exists($file)) {
+		// put the content of the file in a variable
+		$data = file_get_contents($file);
+
+		$obj = json_decode($data);
+		return $obj->version;
+	}
+	return null;
 }
 
 // setup ajax endpoints

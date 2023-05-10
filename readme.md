@@ -18,8 +18,46 @@ At a glance, this plugin adds the following:
 
 In addition, the Source of Truth plugin includes several filters that show different messages on all various environments wether they are or are not the current source of truth. If not, the message links to the current SOT.
 
-## Changelog
+## Installation
 
+Project can then manage version numbers by incrementing the version number to match.
+```
+	"repositories": [
+        ...
+        {
+            "type": "package",
+			"package": {
+				"name": "poundandgrain/truth-source",
+				"type": "wordpress-plugin",
+				"version": "0.8",
+				"dist": {
+					"type": "zip",
+					"url":  "https://github.com/poundandgrain/truth-source/archive/tags/{%version}.zip"
+				}
+			}
+        }
+	]
+```
+and to the require block
+```
+"require": [
+    ...
+    "poundandgrain/truth-source": "*",
+]
+```
+
+## Developer notes
+
+PR's need to tag with the updated version number until we can get it into the proper wpackagist and WordPress plugin svg.
+
+
+## Changelog
+### 0.8.0
+
+- fix: added wordpress multisite support
+- fix: fixed support for php 8.1. TODO 8.2
+- feature: added version checking
+- chore: readme update.
 ### 0.1.1
 
 - fix: a few null value variables were causing errors. added additional null checks to prevent these issues.

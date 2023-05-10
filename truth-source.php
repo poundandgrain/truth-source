@@ -3,8 +3,9 @@
  * Truth Source
  *
  * Plugin Name: Truth Source
+ * Description:   Identifies the current source of truth in a multi-environment development schema.
+ * Version:       0.6
  *
- * Identifies the current source of truth in a multi-environment development schema
  */
 
 if ( is_admin() ) {
