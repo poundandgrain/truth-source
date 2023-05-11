@@ -121,7 +121,6 @@ final class Truth_Source {
 				}
 				else
 				{
-					//dd(count($settings['sources']), $settings['sources'] );
 					self::$errors[] = "'{$cleanedSource}' already exists as environment.";
 				}
 
@@ -280,7 +279,6 @@ final class Truth_Source {
 		if(empty($data)) {
 			if($recordErrors) self::$errors[] = "Host `{$source}` unreachable or truth-source not enabled.";
 		} else if(empty($data->version)) {
-			dd($data);
 			if($recordErrors) self::$errors[] = "Host `{$source}` version number is not {$settings['version']}.";
 		} else if($data->version != $settings['version']) {
 			if($recordErrors) self::$errors[] = "Host `{$source}` version number is {$data->version} not {$settings['version']}.";
