@@ -41,7 +41,7 @@ final class Truth_Source {
 
             // setup side menu options
 			if (is_multisite()) {
-				add_action( 'network_admin_menu', [ __CLASS__, 'network_admin_menu', 10 ] );
+				add_action( 'network_admin_menu', [ __CLASS__, 'network_admin_menu'], 10 );
 			} else {
 				add_action( 'admin_menu', [ __CLASS__, 'admin_menu' ], 10 );
 			}

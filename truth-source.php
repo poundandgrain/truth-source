@@ -4,7 +4,7 @@
  *
  * Plugin Name: Truth Source
  * Description:   Identifies the current source of truth in a multi-environment development schema.
- * Version:       0.6
+ * Version:       0.8.1
  *
  */
 

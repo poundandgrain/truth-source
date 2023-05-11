@@ -52,6 +52,12 @@ PR's need to tag with the updated version number until we can get it into the pr
 
 
 ## Changelog
+
+### 0.8.1
+
+- fix: fixed priority for truth source for network sites
+- chore: updated version
+
 ### 0.8.0
 
 - fix: added wordpress multisite support
