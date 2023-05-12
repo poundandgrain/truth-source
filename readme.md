@@ -53,6 +53,10 @@ PR's need to tag with the updated version number until we can get it into the pr
 
 ## Changelog
 
+### 0.8.3
+
+- fix: verifies and gives proper errors when key doesn't match
+- chore: updated version
 ### 0.8.2
 
 - fix: fixed priority for truth source for network sites

@@ -1,7 +1,7 @@
 {
   "name": "poundandgrain/truth-source",
   "description": "Broadcasts message to various environments to modify the content source of truth",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "type": "wordpress-muplugin",
   "require": {
     "composer/installers": "^1.8"

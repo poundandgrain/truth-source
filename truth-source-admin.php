@@ -282,7 +282,10 @@ final class Truth_Source {
 			if($recordErrors) self::$errors[] = "Host `{$source}` version number is not {$settings['version']}.";
 		} else if($data->version != $settings['version']) {
 			if($recordErrors) self::$errors[] = "Host `{$source}` version number is {$data->version} not {$settings['version']}.";
-		} else {
+		} else if($data->success === false) {
+			// remote error
+			if($recordErrors) self::$errors[] = $data->message;
+		} else if(!empty($data->sources)) {
 			$settings['status'][$source] = $data->success;
 
 			$remoteHash = md5(json_encode($data->sources));
@@ -296,6 +299,8 @@ final class Truth_Source {
 			if(!empty($data->message) && $recordErrors) {
 				self::$errors[] = $data->message;
 			}
+		} else {
+			if($recordErrors) self::$errors[] = "Host `{$source}` does not have any sources defined.";
 		}
 		return $redo;
 	}
@@ -540,7 +545,7 @@ function ajax_truth_source(){
 			echo(json_encode(['success' => true, 'version' => $settings['version'], 'sources' => $settings['sources']]));
 			update_option('truth-source', $payload);
 		} else {
-			echo(json_encode(['success' => false, 'version' => $settings['version'], 'message' => 'Tokens don\'t match' . $payload['token'] . ' and ' . $settings['token'] ]));
+			echo(json_encode(['success' => false, 'version' => $settings['version'], 'message' => 'Tokens don\'t match, Please re-check that they are all exactly the same. ']));
 		}
 	} else {
 		echo(json_encode(['success' => false, 'message' => 'Settings are empty.']));
