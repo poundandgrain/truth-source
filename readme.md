@@ -53,6 +53,9 @@ PR's need to tag with the updated version number until we can get it into the pr
 
 ## Changelog
 
+### 0.8.4
+
+- fix: make sure sources return an array, otherwise don't update local
 ### 0.8.3
 
 - fix: verifies and gives proper errors when key doesn't match

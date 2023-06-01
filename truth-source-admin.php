@@ -101,6 +101,8 @@ final class Truth_Source {
 		}
 	}
 
+
+
 	private static function check_form_submissions()
 	{
 		$settings = self::$settings;
@@ -290,7 +292,10 @@ final class Truth_Source {
 
 			$remoteHash = md5(json_encode($data->sources));
 			// combine remote sources with these sources
-			$settings['sources'] = array_unique(array_merge($data->sources,$settings['sources']), SORT_REGULAR);
+			$new_sources = array_unique(array_merge($data->sources,$settings['sources']), SORT_REGULAR);
+			if(count($new_sources) > 0) {
+				$settings['sources'] = $new_sources;
+			}
 			$sourceHash = md5(json_encode($settings['sources']));
 			if($sourceHash != $remoteHash) {
 				$redo = true;
@@ -522,6 +527,31 @@ function get_sot_settings() {
 	return $settings;
 }
 
+function get_sot_version_number() {
+	// read version number from composer.json
+	$file = __DIR__ . '/composer.json';
+	if (file_exists($file)) {
+		// put the content of the file in a variable
+		$data = file_get_contents($file);
+
+		$obj = json_decode($data);
+		return $obj->version;
+	}
+	return null;
+}
+
+function present_modal( $post_id, $post, $update )
+{
+	//$settings = self::$settings;
+	if(array_key_exists('sot', $settings) && $settings['sot'] !== home_url()):
+		// this is NOT the SOT, present modal
+		//dd('asf');
+	endif;
+}
+
+add_action( 'post_updated', [ __CLASS__, 'present_modal' ], 10, 3 );
+
+
 /**
  * Ajax path for negotiating source of truth
  */
@@ -554,19 +584,5 @@ function ajax_truth_source(){
 	die();
 }
 
-function get_sot_version_number() {
-	// read version number from composer.json
-	$file = __DIR__ . '/composer.json';
-	if (file_exists($file)) {
-		// put the content of the file in a variable
-		$data = file_get_contents($file);
-
-		$obj = json_decode($data);
-		return $obj->version;
-	}
-	return null;
-}
-
-// setup ajax endpoints
 add_action( 'wp_ajax_truth_source', __CLASS__ . '\\ajax_truth_source' );
 add_action( 'wp_ajax_nopriv_truth_source', __CLASS__ . '\\ajax_truth_source' );
